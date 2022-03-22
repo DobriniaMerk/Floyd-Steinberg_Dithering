@@ -1,34 +1,37 @@
 ﻿using SFML.System;
 using SFML.Graphics;
-
-Image img = new Image("");  // add path
+using SFML.Window;
+using ImageDithering;
 
 //                Floyd–Steinberg dithering
+//                      X  7
+//                   3  5  1
 
-Image Dither(Image _image, int colorDepth)
+Image img = new Image("img.png");  // add path
+Utils.Dither(img, 4);
+
+VideoMode vm = new VideoMode(800, 800);
+RenderWindow rw = new RenderWindow(vm, "Labirinth", Styles.Close, new ContextSettings(32, 32, 8));
+Texture t = new Texture(img);
+t.Smooth = false;
+Sprite s = new Sprite(t);
+
+
+rw.Closed += OnClose;
+
+
+
+while (rw.IsOpen)
 {
-    Image image = _image;
-    byte n = (byte)(255 / (colorDepth - 1));
+    rw.DispatchEvents();
+    rw.Clear();
+    rw.Draw(s);
+    rw.Display();
+}
 
-    for (uint x = 0; x < image.Size.X; x++)
-    {
-        for (uint y = 0; y < image.Size.Y; y++)
-        {
-            Color pix = image.GetPixel(x, y);
-            Color wanted = image.GetPixel(x, y);
 
-            wanted.R /= n;
-            wanted.R *= n;
-            wanted.G /= n;
-            wanted.G *= n;
-            wanted.B /= n;
-            wanted.B *= n;
 
-            image.SetPixel(x, y, wanted);
-
-            Color error = new Color((byte)(pix.R - wanted.R), (byte)(pix.G - wanted.G), (byte)(pix.B - wanted.B));
-        }
-    }
-
-    return image;
+static void OnClose(object sender, EventArgs e)
+{
+    (sender as RenderWindow)?.Close();
 }
