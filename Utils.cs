@@ -82,7 +82,7 @@ namespace ImageDithering
                 means[i] = new Color((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255));
 
             //  k-means clustering
-
+            //  by this tutorial https://docs.microsoft.com/ru-ru/archive/msdn-magazine/2013/february/data-clustering-detecting-abnormal-data-using-k-means-clustering
 
 
             return null;
