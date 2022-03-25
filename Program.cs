@@ -1,4 +1,5 @@
-﻿using SFML.System;
+﻿using System.Drawing;
+using SFML.System;
 using SFML.Graphics;
 using SFML.Window;
 using ImageDithering;
@@ -8,13 +9,14 @@ using ImageDithering;
 //                   3  5  1
 
 Image img = new Image("img.png");  // add path
-Utils.Dither(img, 4);
+Utils.Dither(img, 3);
 
 VideoMode vm = new VideoMode(800, 800);
 RenderWindow rw = new RenderWindow(vm, "Labirinth", Styles.Close, new ContextSettings(32, 32, 8));
 Texture t = new Texture(img);
 t.Smooth = false;
 Sprite s = new Sprite(t);
+
 
 
 rw.Closed += OnClose;

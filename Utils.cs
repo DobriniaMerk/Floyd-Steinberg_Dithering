@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SFML.Graphics;
+using SFML.System;
+using SFML.Window;
 
 namespace ImageDithering
 {
@@ -34,6 +36,10 @@ namespace ImageDithering
             b = (Math.Clamp(self.B + other.B, 0, 254));
             return new Color((byte)r, (byte)g, (byte)b);
         }
+        static float DistanceTo(this Color self, Color other)
+        {
+            return MathF.Sqrt(MathF.Pow(self.R - other.R, 2) + MathF.Pow(self.G - other.G, 2) + MathF.Pow(self.B - other.B, 2));
+        }
 
         public static void Dither(Image _image, int colorDepth)
         {
@@ -60,6 +66,26 @@ namespace ImageDithering
                     image.SetPixel(x - 1, y + 1, error.Multiply(1 / 3).Add(image.GetPixel(x - 1, y + 1)));
                 }
             }
+        }
+
+
+        public static Color[] Quantize(Image img, int colorNum)
+        {
+            Random random = new Random();
+            Color[] colors = new Color[img.Pixels.Length / 3];
+            Color[] means = new Color[colorNum];
+
+            for (int i = 0; i < img.Pixels.Length; i += 3)
+                colors[i / 3] = new Color(img.Pixels[i], img.Pixels[i + 1], img.Pixels[i + 2]);
+
+            for (int i = 0; i < colorNum; i++)
+                means[i] = new Color((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255));
+
+            //  k-means clustering
+
+
+
+            return null;
         }
     }
 }
