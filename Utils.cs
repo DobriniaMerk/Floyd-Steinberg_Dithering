@@ -13,19 +13,13 @@ namespace ImageDithering
     {
         public static Color Divide(this Color self, byte n)
         {
-            byte R = (byte)(self.R / n);
-            byte G = (byte)(self.G / n);
-            byte B = (byte)(self.B / n);
-            return new Color(R, G, B);
+            return new Color((byte)(self.R / n), (byte)(self.G / n), (byte)(self.B / n));
         }
 
 
         public static Color Multiply(this Color self, byte n)
         {
-            byte R = (byte)(self.R * n);
-            byte G = (byte)(self.G * n);
-            byte B = (byte)(self.B * n);
-            return new Color(R, G, B);
+            return new Color((byte)(self.R * n), (byte)(self.G * n), (byte)(self.B * n));
         }
 
         public static Color Add(this Color self, Color other)
@@ -63,41 +57,48 @@ namespace ImageDithering
         }
 
 
-        public static Color[] Quantize(Image img, int colorNum)
+        static Color[] QuantizeMedian(Image img, int colorNum)  // https://en.wikipedia.org/wiki/Median_cut another variant
+        {
+            Color[] colors = new Color[colorNum];
+            Color sum = new Color(0, 0, 0);
+
+            return null;
+        }
+
+
+
+        static Color[] Quantize(Image img, int colorNum)
         {
             Random random = new Random();
             Color[] means = new Color[colorNum];
-            Color color = new Color(0, 0, 0), mean, t;
-            int n;
+            Color color = new Color(0, 0, 0), t = new Color(0, 0, 0);
+            int n, j = 0;
 
             for (int i = 0; i < colorNum; i++)
                 means[i] = new Color((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255));
 
-            //  k-means clustering
-            //  by this tutorial https://docs.microsoft.com/ru-ru/archive/msdn-magazine/2013/february/data-clustering-detecting-abnormal-data-using-k-means-clustering
-
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 16; i++)
             {
-                for(int j = 0; j < means.Length; j++)
+                j = 0;
+
+                foreach(Color mean in means)
                 {
                     Console.WriteLine(j);
-                    mean = means[j];
-                    t = new Color(0, 0, 0);
+                    t.Multiply(0);
                     n = 0;
 
                     for (int k = 3; k < img.Pixels.Length; k += 300)
                     {
-                        color = new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]);
-
-                        if (GetNearest(color, means, 20) == mean)
+                        if (GetNearest(new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]), means, 15) == mean)
                         {
-                            t.Add(color);
+                            t.Add(new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]));
                             n++;
                         }
                     }
 
                     if(n != 0)
-                        mean = t.Divide((byte)n);
+                        means[j] = t.Multiply((byte)(1/n));
+                    j++;
                 }
             }
 
