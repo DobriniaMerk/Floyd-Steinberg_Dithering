@@ -35,14 +35,14 @@ namespace ImageDithering
         public static void Dither(Image _image, int colorDepth)
         {
             Image image = _image;
-            Color[] colors = Quantize(image, colorDepth);
+            Color[] colors = QuantizeMedian(image, colorDepth);
 
             for (uint x = 0; x < image.Size.X; x++)
             {
                 for (uint y = 0; y < image.Size.Y; y++)
                 {
                     Color pix = image.GetPixel(x, y);
-                    Color wanted = GetNearest(pix, colors, 1000);
+                    Color wanted = GetNearest(pix, colors, 10000000);
 
                     image.SetPixel(x, y, wanted);
 
@@ -59,12 +59,84 @@ namespace ImageDithering
 
         static Color[] QuantizeMedian(Image img, int colorNum)  // https://en.wikipedia.org/wiki/Median_cut another variant
         {
-            Color[] colors = new Color[colorNum];
-            Color sum = new Color(0, 0, 0);
+            Color[][] oldColors = new Color[colorNum][];
+            Color[][] newColors = new Color[colorNum][];
+            Color[][] t = new Color[colorNum][];
+            oldColors[0] = new Color[img.Pixels.Length / 3];
 
-            return null;
+            for (int i = 0; i < colorNum; i++)
+                newColors[i] = new Color[img.Pixels.Length / 3];
+
+            for (int i = 2; i < img.Pixels.Length; i += 300)
+                oldColors[0][i / 3] = new Color(img.Pixels[i - 2], img.Pixels[i - 1], img.Pixels[i]);
+
+            for (int i = 1; i < colorNum; i *= 2)
+            {
+                for (int j = 0; j < i; j++)
+                {
+                    t = QuantizeMedianSplit(oldColors[j]);
+                    newColors[j] = t[0];
+                    newColors[j + 1] = t[1];
+                }
+
+                for (int y = 0; y < i; y++)
+                    oldColors[y] = (Color[])newColors[y].Clone();
+
+                Console.WriteLine(i);
+            }
+
+            Color[] ret = new Color[colorNum];
+
+            for (int i = 0; i < colorNum; i++)
+            {
+                Color sum = new Color(0, 0, 0);
+                int n = 0;
+                foreach (Color c in oldColors[i])
+                {
+                    sum.Add(c);
+                    n++;
+                }
+                sum.Divide((byte)n);
+                ret[i] = sum;
+            }
+
+            return ret;
         }
 
+
+        static Color[][] QuantizeMedianSplit(Color[] colors)
+        {
+            Color[][] ret = new Color[2][];
+            ret[0] = new Color[colors.Length/2];
+            ret[1] = new Color[colors.Length / 2];
+            Color sum = new Color(0, 0, 0);
+
+            foreach (Color c in colors)
+            {
+                sum.Add(c);
+
+                if (sum.R > sum.G && sum.R > sum.B)
+                {
+                    colors = colors.OrderBy(order => order.R).ToArray();
+                    ret[0] = colors.Take(colors.Length / 2).ToArray();
+                    ret[1] = colors.Skip(colors.Length / 2).ToArray();
+                }
+                else if (sum.G > sum.R && sum.G > sum.B)
+                {
+                    colors = colors.OrderBy(order => order.G).ToArray();
+                    ret[0] = colors.Take(colors.Length / 2).ToArray();
+                    ret[1] = colors.Skip(colors.Length / 2).ToArray();
+                }
+                else if (sum.B > sum.R && sum.B > sum.G)
+                {
+                    colors = colors.OrderBy(order => order.B).ToArray();
+                    ret[0] = colors.Take(colors.Length / 2).ToArray();
+                    ret[1] = colors.Skip(colors.Length / 2).ToArray();
+                }
+            }
+
+            return ret;
+        }
 
 
         static Color[] Quantize(Image img, int colorNum)
@@ -77,7 +149,7 @@ namespace ImageDithering
             for (int i = 0; i < colorNum; i++)
                 means[i] = new Color((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255));
 
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < 32; i++)
             {
                 j = 0;
 
@@ -89,9 +161,10 @@ namespace ImageDithering
 
                     for (int k = 3; k < img.Pixels.Length; k += 300)
                     {
-                        if (GetNearest(new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]), means, 15) == mean)
+                        color = new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]);
+                        if (GetNearest(color, means, 250) == mean)
                         {
-                            t.Add(new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]));
+                            t.Add(color);
                             n++;
                         }
                     }
@@ -108,14 +181,14 @@ namespace ImageDithering
 
         static float DistanceTo(this Color self, Color other)
         {
-            return MathF.Sqrt(MathF.Pow(self.R - other.R, 2) + MathF.Pow(self.G - other.G, 2) + MathF.Pow(self.B - other.B, 2));
+            return (self.R - other.R) * (self.R - other.R) + (self.G - other.G) * (self.G - other.G) + (self.B - other.B) * (self.B - other.B);
         }
+
 
         static Color GetNearest(Color color, Color[] search, int maxDist)
         {
-            float dist = -1;
+            float dist = -1, tDist = 0;
             Color ret = color;
-            float tDist = 0;
 
             foreach (Color c in search)
             {
