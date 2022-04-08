@@ -24,11 +24,7 @@ namespace ImageDithering
 
         public static Color Add(this Color self, Color other)
         {
-            int r, g, b;
-            r = Math.Clamp(self.R + other.R, 0, 255);
-            g = Math.Clamp(self.G + other.G, 0, 255);
-            b = Math.Clamp(self.B + other.B, 0, 255);
-            return new Color((byte)r, (byte)g, (byte)b);
+            return new Color((byte)Math.Clamp(self.R + other.R, 0, 255), (byte)Math.Clamp(self.G + other.G, 0, 255), (byte)Math.Clamp(self.B + other.B, 0, 255));
         }
 
 
@@ -56,47 +52,67 @@ namespace ImageDithering
             }
         }
 
-
-        static Color[] QuantizeMedian(Image img, int colorNum)  // https://en.wikipedia.org/wiki/Median_cut another variant
+        /// <summary>
+        /// Quatization by median cut
+        /// </summary>
+        /// <param name="img">Source image</param>
+        /// <param name="colorNum">Number of colors to return; Must be a power of two</param>
+        /// <returns>Array of Color[colorNum]</returns>
+        static Color[] QuantizeMedian(Image img, int colorNum)  // unfinished
         {
             Color[][] oldColors = new Color[colorNum][];
             Color[][] newColors = new Color[colorNum][];
             Color[][] t = new Color[colorNum][];
             oldColors[0] = new Color[img.Pixels.Length / 3];
 
-            for (int i = 0; i < colorNum; i++)
-                newColors[i] = new Color[img.Pixels.Length / 3];
+            // Temp variables
+            int skip = 300;
+            int arraySize = (img.Pixels.Length / 3) / skip;
+            int filledRows = 1;
+            //  Temp variables
 
-            for (int i = 2; i < img.Pixels.Length; i += 300)
-                oldColors[0][i / 3] = new Color(img.Pixels[i - 2], img.Pixels[i - 1], img.Pixels[i]);
-
-            for (int i = 1; i < colorNum; i *= 2)
+            for (int i = 0; i < colorNum; i++)  // initialize arrays
             {
-                for (int j = 0; j < i; j++)
-                {
-                    t = QuantizeMedianSplit(oldColors[j]);
-                    newColors[j] = t[0];
-                    newColors[j + 1] = t[1];
-                }
-
-                for (int y = 0; y < i; y++)
-                    oldColors[y] = (Color[])newColors[y].Clone();
-
-                Console.WriteLine(i);
+                newColors[i] = new Color[arraySize];
+                oldColors[i] = new Color[arraySize];
             }
 
-            Color[] ret = new Color[colorNum];
+            for (int i = 0; i < arraySize; i++)  // set first array of oldColors to img pixels, with interval of skip
+                oldColors[0][i] = new Color(img.Pixels[skip * i], img.Pixels[skip * i + 1], img.Pixels[skip * i + 2]);
 
-            for (int i = 0; i < colorNum; i++)
+            while (filledRows < colorNum)  // while not all colors are done
+            {
+                for (int j = 0; j < filledRows; j++)
+                {
+                    t = QuantizeMedianSplit(oldColors[j]);  // split each filled row
+                    newColors[j * 2] = t[0];
+                    newColors[j * 2 + 1] = t[1];  // assign them to newColors
+                }
+
+                filledRows *= 2;
+
+                for (int y = 0; y < filledRows; y++)
+                {
+                    oldColors[y] = (Color[])newColors[y].Clone();  // copy newColors to oldColors
+                    newColors[y] = new Color[arraySize];
+                }
+
+                Console.WriteLine(filledRows);
+
+            }
+
+            Color[] ret = new Color[colorNum];  // colors to return
+
+            for (int i = 0; i < colorNum; i++)  // calculate mean color of each array and return them
             {
                 Color sum = new Color(0, 0, 0);
                 int n = 0;
                 foreach (Color c in oldColors[i])
                 {
-                    sum.Add(c);
+                    sum = sum.Add(c);  // TODO: remove clipping
                     n++;
                 }
-                sum.Divide((byte)n);
+                sum = sum.Divide((byte)n);
                 ret[i] = sum;
             }
 
@@ -109,36 +125,44 @@ namespace ImageDithering
             Color[][] ret = new Color[2][];
             ret[0] = new Color[colors.Length/2];
             ret[1] = new Color[colors.Length / 2];
-            Color sum = new Color(0, 0, 0);
+            int r = 0, g = 0, b = 0;
 
             foreach (Color c in colors)
             {
-                sum.Add(c);
+                r += c.R;
+                g += c.G;
+                b += c.B;
+            }
 
-                if (sum.R > sum.G && sum.R > sum.B)
-                {
-                    colors = colors.OrderBy(order => order.R).ToArray();
-                    ret[0] = colors.Take(colors.Length / 2).ToArray();
-                    ret[1] = colors.Skip(colors.Length / 2).ToArray();
-                }
-                else if (sum.G > sum.R && sum.G > sum.B)
-                {
-                    colors = colors.OrderBy(order => order.G).ToArray();
-                    ret[0] = colors.Take(colors.Length / 2).ToArray();
-                    ret[1] = colors.Skip(colors.Length / 2).ToArray();
-                }
-                else if (sum.B > sum.R && sum.B > sum.G)
-                {
-                    colors = colors.OrderBy(order => order.B).ToArray();
-                    ret[0] = colors.Take(colors.Length / 2).ToArray();
-                    ret[1] = colors.Skip(colors.Length / 2).ToArray();
-                }
+            if (r > g && r > b)
+            {
+                colors = colors.OrderBy(order => order.R).ToArray();
+                ret[0] = colors.Take(colors.Length / 2).ToArray();
+                ret[1] = colors.Skip(colors.Length / 2).ToArray();
+            }
+            else if (g > r && g > b)
+            {
+                colors = colors.OrderBy(order => order.G).ToArray();
+                ret[0] = colors.Take(colors.Length / 2).ToArray();
+                ret[1] = colors.Skip(colors.Length / 2).ToArray();
+            }
+            else if (b > r && b > g)
+            {
+                colors = colors.OrderBy(order => order.B).ToArray();
+                ret[0] = colors.Take(colors.Length / 2).ToArray();
+                ret[1] = colors.Skip(colors.Length / 2).ToArray();
             }
 
             return ret;
         }
 
 
+        /// <summary>
+        /// Color quantization by clustering (very slow)
+        /// </summary>
+        /// <param name="img">Sourse image to take colors out</param>
+        /// <param name="colorNum">Number of colors to return</param>
+        /// <returns>Color[colorNum]</returns>
         static Color[] Quantize(Image img, int colorNum)
         {
             Random random = new Random();
@@ -149,14 +173,14 @@ namespace ImageDithering
             for (int i = 0; i < colorNum; i++)
                 means[i] = new Color((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255));
 
-            for (int i = 0; i < 32; i++)
+            for (int i = 0; i < 16; i++)
             {
                 j = 0;
 
                 foreach(Color mean in means)
                 {
                     Console.WriteLine(j);
-                    t.Multiply(0);
+                    t = t.Multiply(0);
                     n = 0;
 
                     for (int k = 3; k < img.Pixels.Length; k += 300)
@@ -164,7 +188,7 @@ namespace ImageDithering
                         color = new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]);
                         if (GetNearest(color, means, 250) == mean)
                         {
-                            t.Add(color);
+                            t = t.Add(color);  // TODO: remove clipping
                             n++;
                         }
                     }
