@@ -28,23 +28,29 @@ namespace ImageDithering
         }
 
 
-        public static void Dither(Image _image, int colorDepth)
+        public static void Dither(Image _image, int colorDepth, bool clustering = false)
         {
             Image image = _image;
-            Color[] colors = QuantizeMedian(image, colorDepth);
+            Color[] colors;
+            if (clustering)
+                colors = Quantize(image, colorDepth);
+            else
+                colors = QuantizeMedian(image, colorDepth);
 
             for (uint x = 0; x < image.Size.X; x++)
             {
                 for (uint y = 0; y < image.Size.Y; y++)
                 {
                     Color pix = image.GetPixel(x, y);
-                    Color wanted = GetNearest(pix, colors, 10000000);
+
+                    Color wanted = GetNearest(pix, colors, 100000000);
+                    
 
                     image.SetPixel(x, y, wanted);
 
-                    Color error = new Color((byte)(pix.R - wanted.R), (byte)(pix.G - wanted.G), (byte)(pix.B - wanted.B));
+                    Color error = new Color((byte)Math.Clamp(pix.R - wanted.R, 0, 255), (byte)Math.Clamp(pix.G - wanted.G, 0, 255), (byte)Math.Clamp(pix.B - wanted.B, 0, 255));
 
-                    image.SetPixel(x + 1, y, error.Multiply(1 / 7).Add(image.GetPixel(x + 1, y))); //    error distribution
+                    image.SetPixel(x + 1, y, error.Multiply(1 / 7).Add(image.GetPixel(x + 1, y)));      //  error distribution
                     image.SetPixel(x + 1, y + 1, error.Multiply(1 / 1).Add(image.GetPixel(x + 1, y + 1)));
                     image.SetPixel(x, y + 1, error.Multiply(1 / 5).Add(image.GetPixel(x, y + 1)));
                     image.SetPixel(x - 1, y + 1, error.Multiply(1 / 3).Add(image.GetPixel(x - 1, y + 1)));
@@ -58,14 +64,14 @@ namespace ImageDithering
         /// <param name="img">Source image</param>
         /// <param name="colorNum">Number of colors to return; Must be a power of two</param>
         /// <returns>Array of Color[colorNum]</returns>
-        static Color[] QuantizeMedian(Image img, int colorNum)  // unfinished
+        public static Color[] QuantizeMedian(Image img, int colorNum)  // unfinished
         {
             Color[][] oldColors = new Color[colorNum][];
             Color[][] newColors = new Color[colorNum][];
             Color[][] t = new Color[colorNum][];
             oldColors[0] = new Color[img.Pixels.Length / 3];
 
-            // Temp variables
+            //  Temp variables
             int skip = 300;
             int arraySize = (img.Pixels.Length / 3) / skip;
             int filledRows = 1;
@@ -102,18 +108,21 @@ namespace ImageDithering
             }
 
             Color[] ret = new Color[colorNum];  // colors to return
+            Vector3f sum = new Vector3f(0, 0, 0);
 
             for (int i = 0; i < colorNum; i++)  // calculate mean color of each array and return them
             {
-                Color sum = new Color(0, 0, 0);
                 int n = 0;
                 foreach (Color c in oldColors[i])
                 {
-                    sum = sum.Add(c);  // TODO: remove clipping
+                    sum.X += c.R;
+                    sum.Y += c.G;
+                    sum.Z += c.B;
                     n++;
                 }
-                sum = sum.Divide((byte)n);
-                ret[i] = sum;
+
+                sum /= n;
+                ret[i] = new Color((byte)sum.X, (byte)sum.Y, (byte)sum.Z);
             }
 
             return ret;
@@ -163,24 +172,25 @@ namespace ImageDithering
         /// <param name="img">Sourse image to take colors out</param>
         /// <param name="colorNum">Number of colors to return</param>
         /// <returns>Color[colorNum]</returns>
-        static Color[] Quantize(Image img, int colorNum)
+        public static Color[] Quantize(Image img, int colorNum)
         {
             Random random = new Random();
             Color[] means = new Color[colorNum];
-            Color color = new Color(0, 0, 0), t = new Color(0, 0, 0);
-            int n, j = 0;
+            Color color;
+            Vector3f sum = new Vector3f(0, 0, 0);
+            int n, j;
 
             for (int i = 0; i < colorNum; i++)
                 means[i] = new Color((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255));
 
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < 10; i++)
             {
                 j = 0;
 
                 foreach(Color mean in means)
                 {
                     Console.WriteLine(j);
-                    t = t.Multiply(0);
+                    sum *= 0;
                     n = 0;
 
                     for (int k = 3; k < img.Pixels.Length; k += 300)
@@ -188,13 +198,18 @@ namespace ImageDithering
                         color = new Color(img.Pixels[k], img.Pixels[k - 1], img.Pixels[k - 2]);
                         if (GetNearest(color, means, 250) == mean)
                         {
-                            t = t.Add(color);  // TODO: remove clipping
+                            sum.X += color.R;
+                            sum.Y += color.G;
+                            sum.Z += color.B;
                             n++;
                         }
                     }
 
-                    if(n != 0)
-                        means[j] = t.Multiply((byte)(1/n));
+                    if (n != 0)
+                    {
+                        sum /= n;
+                        means[j] = new Color((byte)sum.X, (byte)sum.Y, (byte)sum.Z);
+                    }
                     j++;
                 }
             }
@@ -203,12 +218,18 @@ namespace ImageDithering
         }
 
 
-        static float DistanceTo(this Color self, Color other)
+        static float DistanceTo(this Color self, Color other)  // to get proper distance you need sqare root of result; not using for optimisation
         {
             return (self.R - other.R) * (self.R - other.R) + (self.G - other.G) * (self.G - other.G) + (self.B - other.B) * (self.B - other.B);
         }
 
-
+        /// <summary>
+        /// Searchs nearest but not farther than maxDist color to color in search array
+        /// </summary>
+        /// <param name="color">Base color</param>
+        /// <param name="search">Array for searching in</param>
+        /// <param name="maxDist">Maximum distance of nearest color</param>
+        /// <returns></returns>
         static Color GetNearest(Color color, Color[] search, int maxDist)
         {
             float dist = -1, tDist = 0;
@@ -217,7 +238,8 @@ namespace ImageDithering
             foreach (Color c in search)
             {
                 tDist = color.DistanceTo(c);
-                if ((dist == -1 || tDist < dist) && tDist < maxDist)
+
+                if (tDist < maxDist && (dist == -1 || tDist < dist))
                 {
                     dist = tDist;
                     ret = c;
