@@ -90,7 +90,7 @@ namespace ImageDithering
             {
                 for (int j = 0; j < filledRows; j++)
                 {
-                    t = QuantizeMedianSplit(oldColors[j]);  // split each filled row
+                    t = QuantizeMedianSplitOptimal(oldColors[j]);  // split each filled row
                     newColors[j * 2] = t[0];
                     newColors[j * 2 + 1] = t[1];  // assign them to newColors
                 }
@@ -104,7 +104,6 @@ namespace ImageDithering
                 }
 
                 Console.WriteLine(filledRows);
-
             }
 
             Color[] ret = new Color[colorNum];  // colors to return
@@ -128,7 +127,11 @@ namespace ImageDithering
             return ret;
         }
 
-
+        /// <summary>
+        /// Splits "colors" array in halves by maximum color channel
+        /// </summary>
+        /// <param name="colors">Colors to split</param>
+        /// <returns></returns>
         static Color[][] QuantizeMedianSplit(Color[] colors)
         {
             Color[][] ret = new Color[2][];
@@ -146,21 +149,84 @@ namespace ImageDithering
             if (r > g && r > b)
             {
                 colors = colors.OrderBy(order => order.R).ToArray();
-                ret[0] = colors.Take(colors.Length / 2).ToArray();
-                ret[1] = colors.Skip(colors.Length / 2).ToArray();
             }
             else if (g > r && g > b)
             {
                 colors = colors.OrderBy(order => order.G).ToArray();
-                ret[0] = colors.Take(colors.Length / 2).ToArray();
-                ret[1] = colors.Skip(colors.Length / 2).ToArray();
             }
             else if (b > r && b > g)
             {
                 colors = colors.OrderBy(order => order.B).ToArray();
-                ret[0] = colors.Take(colors.Length / 2).ToArray();
-                ret[1] = colors.Skip(colors.Length / 2).ToArray();
             }
+
+            ret[0] = colors.Take(colors.Length / 2).ToArray();
+            ret[1] = colors.Skip(colors.Length / 2).ToArray();
+
+            return ret;
+        }
+
+
+        /// <summary>
+        /// Splits "colors" array in best point by maximum color channel
+        /// </summary>
+        /// <param name="colors">Colors to split</param>
+        /// <returns></returns>
+        static Color[][] QuantizeMedianSplitOptimal(Color[] colors)
+        {
+            Color[][] ret = new Color[2][];
+            int r = 0, g = 0, b = 0;
+            char channel = 'x';
+
+            foreach (Color c in colors)
+            {
+                r += c.R;
+                g += c.G;
+                b += c.B;
+            }
+
+            if (r > g && r > b)
+            {
+                colors = colors.OrderBy(order => order.R).ToArray();
+                channel = 'r';
+            }
+            else if (g > r && g > b)
+            {
+                colors = colors.OrderBy(order => order.G).ToArray();
+                channel = 'g';
+            }
+            else if (b > r && b > g)
+            {
+                colors = colors.OrderBy(order => order.B).ToArray();
+                channel = 'b';
+            }
+
+            int split = colors.Length / 2;
+            int sumFirst = 0, sumSecond = 0;
+            int fn = 0, sn = colors.Length;
+            int t;
+            float maxDiff = 0;
+
+
+            for (int i = 0; i < colors.Length; i++)
+                sumSecond += channel == 'r' ? colors[i].R : channel == 'g' ? colors[i].G : colors[i].B;
+
+            for (int i = 0; i < colors.Length - 1; i+= 1)
+            {
+                t = channel == 'r' ? colors[i].R : channel == 'g' ? colors[i].G : colors[i].B;
+                sn--;
+                fn++;
+                sumSecond -= t;
+                sumFirst += t;
+
+                if (MathF.Abs(sumFirst/fn - sumSecond/sn) > maxDiff)
+                {
+                    split = i;
+                    maxDiff = MathF.Abs(sumSecond/fn - sumFirst/sn);
+                }
+            }
+
+            ret[0] = colors.Take(colors.Length / 2).ToArray();
+            ret[1] = colors.Skip(colors.Length / 2).ToArray();
 
             return ret;
         }
