@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using SFML.Graphics;
 using SFML.System;
+using System.IO;
 using SFML.Window;
 
 namespace ImageDithering
@@ -28,7 +29,7 @@ namespace ImageDithering
         }
 
 
-        public static void Dither(Image _image, int colorDepth, bool clustering = false)
+        public static Color[] Dither(Image _image, int colorDepth, bool clustering = false)
         {
             Image image = _image;
             Color[] colors;
@@ -56,6 +57,8 @@ namespace ImageDithering
                     image.SetPixel(x - 1, y + 1, error.Multiply(1 / 3).Add(image.GetPixel(x - 1, y + 1)));
                 }
             }
+
+            return colors;
         }
 
         /// <summary>
@@ -289,6 +292,7 @@ namespace ImageDithering
             return (self.R - other.R) * (self.R - other.R) + (self.G - other.G) * (self.G - other.G) + (self.B - other.B) * (self.B - other.B);
         }
 
+
         /// <summary>
         /// Searchs nearest but not farther than maxDist color to color in search array
         /// </summary>
@@ -313,6 +317,53 @@ namespace ImageDithering
             }
 
             return ret;
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="img">Image to save</param>
+        /// <param name="path">Path to saved image</param>
+        static public void SaveToFile(Image img, Color[] colors, string path = "")
+        {
+            FileStream fileStream = new FileStream(path, FileMode.Create, FileAccess.Write);
+
+            byte[] bytes = BitConverter.GetBytes(img.Size.X);
+            fileStream.WriteByte(bytes[0]);
+            fileStream.WriteByte(bytes[1]);
+            fileStream.WriteByte(bytes[2]);
+            fileStream.WriteByte(bytes[3]);
+
+            bytes = BitConverter.GetBytes(img.Size.Y);
+            fileStream.WriteByte(bytes[0]);
+            fileStream.WriteByte(bytes[1]);
+            fileStream.WriteByte(bytes[2]);
+            fileStream.WriteByte(bytes[3]);
+
+            fileStream.WriteByte((byte)colors.Length);  // first byte in file is number of colors
+
+            foreach (Color color in colors) 
+            {
+                fileStream.WriteByte(color.R);
+                fileStream.WriteByte(color.G);
+                fileStream.WriteByte(color.B);
+            }
+
+            for (int x = 0; x < img.Size.X; x++)
+            {
+                for (int y = 0; y < img.Size.Y; y++)
+                {
+                    for (int k = 0; k < colors.Length; k++)
+                    {
+                        if (colors[k] == img.GetPixel((uint)x, (uint)y))
+                        {
+                            fileStream.WriteByte((byte)k);
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 }

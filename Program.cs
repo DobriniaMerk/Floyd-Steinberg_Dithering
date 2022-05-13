@@ -8,7 +8,8 @@ using ImageDithering;
 //                   3  5  1
 
 Image img = new Image("img.png");
-Utils.Dither(img, 32);
+Color[] colors = Utils.Dither(img, 16);
+Utils.SaveToFile(img, colors, "img.fsd");
 
 VideoMode vm = new VideoMode(800, 800);
 RenderWindow rw = new RenderWindow(vm, "Labirinth", Styles.Close, new ContextSettings(32, 32, 8));
